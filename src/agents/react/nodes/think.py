@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from ....core.state import MultiAgentState
 from ...prompts import load_prompt
+from ...utils import build_system_prompt, get_previous_results
 
 
 class ThinkOutput(BaseModel):
@@ -112,21 +113,40 @@ async def think_node(
     else:
         tools_text = "无可用工具（直接回答问题）"
 
+    # 格式化其他 Agent 的上下文
+    previous_results = get_previous_results(state)
+    if previous_results:
+        context_text = ""
+        for r in previous_results:
+            agent = r.get("agent", "unknown")
+            result_preview = r.get("result", "")
+            if len(result_preview) > 200:
+                result_preview = result_preview[:200] + "..."
+            context_text += f"- **{agent}**: {result_preview}\n"
+    else:
+        context_text = "无"
+
+    # 获取领域知识
+    domain_knowledge = state.get("domain_knowledge", {})
+    knowledge_text = domain_knowledge.get("content", "无")
+
     # 构建提示
     prompt_template = system_prompt or load_prompt("react/think")
     prompt = prompt_template.format(
         task=task,
         iterations=iterations_text or "尚未开始",
-        tools=tools_text
+        knowledge=knowledge_text,
+        tools=tools_text,
+        context=context_text
     )
 
-    # 构建系统提示（注入领域知识）
-    domain_knowledge = state.get("domain_knowledge", {})
-    knowledge_content = domain_knowledge.get("content", "")
-
-    full_system_prompt = prompt
-    if knowledge_content:
-        full_system_prompt += f"\n\n## 领域知识\n{knowledge_content}"
+    # 使用工具函数构建完整系统提示（知识已由模板控制，不再注入）
+    full_system_prompt = build_system_prompt(
+        state,
+        prompt,
+        include_knowledge=False,  # 知识已通过模板参数传入
+        include_runtime=False,
+    )
 
     # 调用 LLM 获取结构化输出
     structured_llm = llm.with_structured_output(ThinkOutput)

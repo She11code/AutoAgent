@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from ....core.state import MultiAgentState
 from ...prompts import load_prompt
+from ...utils import build_system_prompt
 
 
 class ReflectionOutput(BaseModel):
@@ -95,16 +96,18 @@ async def reflect_node(
         trigger=trigger
     )
 
-    # 注入领域知识
-    domain_knowledge = state.get("domain_knowledge", {})
-    knowledge_content = domain_knowledge.get("content", "")
-    if knowledge_content:
-        prompt += f"\n\n## 领域知识\n{knowledge_content}"
+    # 使用工具函数构建完整系统提示（注入领域知识）
+    full_prompt = build_system_prompt(
+        state,
+        prompt,
+        include_knowledge=True,
+        include_runtime=False,
+    )
 
     # 调用 LLM 获取反思结果
     structured_llm = llm.with_structured_output(ReflectionOutput)
     result = await structured_llm.ainvoke([
-        SystemMessage(content=prompt),
+        SystemMessage(content=full_prompt),
         HumanMessage(content="请反思计划进度。")
     ])
 

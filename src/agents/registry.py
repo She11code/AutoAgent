@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from langchain_core.language_models import BaseChatModel
-from langgraph.graph import CompiledGraph
+from langgraph.graph.state import CompiledStateGraph
 
 
 class AgentType(Enum):
@@ -68,7 +68,7 @@ class AgentRegistry:
         cls._factories[agent_type] = factory
 
     @classmethod
-    def create_agent(cls, config: AgentConfig) -> Union[Callable, CompiledGraph]:
+    def create_agent(cls, config: AgentConfig) -> Union[Callable, CompiledStateGraph]:
         """
         根据配置创建 Agent 节点。
 
@@ -102,7 +102,7 @@ def create_agent_node(
     agent_type: Union[AgentType, str],
     llm: BaseChatModel,
     **kwargs
-) -> Union[Callable, CompiledGraph]:
+) -> Union[Callable, CompiledStateGraph]:
     """
     便捷函数：创建 Agent 节点。
 
@@ -139,7 +139,7 @@ def create_agent_node(
 
 # ========== 默认工厂函数 ==========
 
-def _create_react_agent(config: AgentConfig) -> CompiledGraph:
+def _create_react_agent(config: AgentConfig) -> CompiledStateGraph:
     """创建 ReAct Agent"""
     from .react import create_react_node
 
@@ -152,7 +152,7 @@ def _create_react_agent(config: AgentConfig) -> CompiledGraph:
     )
 
 
-def _create_plan_agent(config: AgentConfig) -> CompiledGraph:
+def _create_plan_agent(config: AgentConfig) -> CompiledStateGraph:
     """创建 Plan Agent"""
     from .plan import create_plan_node
 
@@ -166,7 +166,7 @@ def _create_plan_agent(config: AgentConfig) -> CompiledGraph:
     )
 
 
-def _create_custom_agent(config: AgentConfig) -> Union[Callable, CompiledGraph]:
+def _create_custom_agent(config: AgentConfig) -> Union[Callable, CompiledStateGraph]:
     """创建自定义 Agent"""
     if config.custom_factory:
         return config.custom_factory(config)

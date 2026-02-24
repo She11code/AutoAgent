@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from ....core.state import MultiAgentState
 from ...prompts import load_prompt
+from ...utils import build_system_prompt
 
 
 class DecompositionOutput(BaseModel):
@@ -88,16 +89,18 @@ async def decompose_node(
         context=context_text or "无"
     )
 
-    # 注入领域知识
-    domain_knowledge = state.get("domain_knowledge", {})
-    knowledge_content = domain_knowledge.get("content", "")
-    if knowledge_content:
-        prompt += f"\n\n## 领域知识\n{knowledge_content}"
+    # 使用工具函数构建完整系统提示（注入领域知识）
+    full_prompt = build_system_prompt(
+        state,
+        prompt,
+        include_knowledge=True,
+        include_runtime=False,
+    )
 
     # 调用 LLM 获取结构化输出
     structured_llm = llm.with_structured_output(DecompositionOutput)
     result = await structured_llm.ainvoke([
-        SystemMessage(content=prompt),
+        SystemMessage(content=full_prompt),
         HumanMessage(content="请分解这个任务。")
     ])
 
