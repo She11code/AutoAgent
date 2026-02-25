@@ -2,7 +2,7 @@
  * 聊天消息相关类型定义
  */
 
-// ============ 消息角色 ============
+// ============ 消息类型 ============
 
 /**
  * 消息角色类型
@@ -14,7 +14,22 @@ export type MessageRole = "user" | "assistant" | "system";
  */
 export type MessageType = "text" | "thinking" | "tool_call";
 
-// ============ 消息类型 ============
+/**
+ * 工具调用状态
+ */
+export type ToolCallStatus = 'pending' | 'running' | 'completed' | 'error';
+
+/**
+ * 工具调用
+ */
+export interface ToolCall {
+  /** 工具调用唯一标识 */
+  id: string;
+  /** 工具名称 */
+  name: string;
+  /** 调用状态 */
+  status: ToolCallStatus;
+}
 
 /**
  * 聊天消息
@@ -45,33 +60,4 @@ export interface Message {
     tool: string;
     output?: string;
   };
-}
-
-// ============ 工具调用类型 ============
-
-/**
- * 工具调用状态
- */
-export type ToolCallStatus = 'pending' | 'running' | 'completed' | 'error';
-
-/**
- * 工具调用
- */
-export interface ToolCall {
-  /** 工具调用唯一标识 */
-  id: string;
-  /** 工具名称 */
-  name: string;
-  /** 工具输入参数 */
-  input?: Record<string, unknown>;
-  /** 工具输出结果 */
-  output?: string;
-  /** 调用状态 */
-  status: ToolCallStatus;
-  /** 开始时间 */
-  startTime?: number;
-  /** 结束时间 */
-  endTime?: number;
-  /** 时间戳 */
-  timestamp?: number;
 }

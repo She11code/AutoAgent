@@ -19,14 +19,6 @@ export interface Settings {
   theme: Theme;
   /** 用户ID */
   userId: string;
-  /** 是否显示工具调用详情 */
-  showToolDetails?: boolean;
-  /** 消息字体大小 */
-  fontSize?: "small" | "medium" | "large";
-  /** 是否启用流式输出 */
-  enableStreaming?: boolean;
-  /** 请求超时时间 (毫秒) */
-  requestTimeout?: number;
 }
 
 // ============ 默认值 ============
@@ -38,19 +30,4 @@ export const DEFAULT_SETTINGS: Settings = {
   apiBaseUrl: "http://localhost:8000/api/v1",
   theme: "system",
   userId: "web-user",
-  showToolDetails: true,
-  fontSize: "medium",
-  enableStreaming: true,
-  requestTimeout: 60000,
 };
-
-// ============ 本地存储键 ============
-
-/**
- * 本地存储键名
- */
-export const STORAGE_KEYS = {
-  SETTINGS: "auto-agent-settings",
-  SESSIONS: "auto-agent-sessions",
-  CURRENT_SESSION: "auto-agent-current-session",
-} as const;
