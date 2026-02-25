@@ -5,6 +5,8 @@ from .graph import (
     create_app_with_agents,
     create_route_supervisor,
     create_simple_app,
+    get_session_state,
+    update_session_knowledge,
 )
 from .reducers import deep_merge_dict_reducer
 from .state import (
@@ -24,4 +26,6 @@ __all__ = [
     "create_simple_app",
     "create_route_supervisor",
     "MultiAgentGraphBuilder",
+    "update_session_knowledge",
+    "get_session_state",
 ]

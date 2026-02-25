@@ -15,17 +15,16 @@ from pydantic import BaseModel, Field
 
 from ....core.state import MultiAgentState
 from ...prompts import load_prompt
-from ...utils import build_system_prompt
+from ...utils import build_system_prompt, extract_chunk_content, parse_json_to_model
 
 
 class DecompositionOutput(BaseModel):
     """分解节点的结构化输出"""
     steps: List[Dict[str, Any]] = Field(
+        default_factory=list,
         description="计划步骤列表，每个步骤包含 description 和 dependencies"
     )
-    reasoning: str = Field(description="为什么选择这种分解方式")
-
-
+    reasoning: str = Field(default="", description="为什么选择这种分解方式")
 
 
 async def decompose_node(
@@ -44,17 +43,18 @@ async def decompose_node(
 
     返回：
         - plan_steps: PlanStep 对象列表
-        - plan_status: "executing"
+        - plan_status: "completed" (分解完成，等待执行)
     """
     task_context = state.get("task_context", {})
 
     # 获取当前任务
     task = task_context.get("current_task", "")
     if not task:
-        assignments = task_context.get("task_assignments", [])
-        for assignment in reversed(assignments):
-            if assignment.get("agent") == agent_name:
-                task = assignment.get("task", "")
+        # 兜底：从最后一条用户消息获取
+        messages = state.get("messages", [])
+        for msg in reversed(messages):
+            if hasattr(msg, 'type') and msg.type == 'human':
+                task = msg.content
                 break
 
     # 获取之前的工作上下文
@@ -69,12 +69,15 @@ async def decompose_node(
             preview = result
         context_text += f"- {agent_name_ctx}: {preview}\n"
 
-    # 格式化工具列表
+    # 格式化工具列表（用于生成计划时参考）
     tools_text = ""
     if tools:
         for tool in tools:
             if hasattr(tool, 'name'):
                 desc = getattr(tool, 'description', 'No description')
+                # 截断过长的描述
+                if len(desc) > 100:
+                    desc = desc[:100] + "..."
                 tools_text += f"- **{tool.name}**: {desc}\n"
             else:
                 tools_text += f"- {str(tool)}\n"
@@ -97,12 +100,37 @@ async def decompose_node(
         include_runtime=False,
     )
 
-    # 调用 LLM 获取结构化输出
-    structured_llm = llm.with_structured_output(DecompositionOutput)
-    result = await structured_llm.ainvoke([
-        SystemMessage(content=full_prompt),
+    # === 流式调用 LLM ===
+    # 不使用 with_structured_output()，因为它不支持流式
+    # 改用 astream() + 手动解析 JSON
+
+    # 构建要求 JSON 格式输出的提示
+    json_format_hint = """
+
+请严格按照以下 JSON 格式输出你的分解结果：
+{
+    "steps": [
+        {"description": "步骤描述", "dependencies": []}
+    ],
+    "reasoning": "为什么选择这种分解方式"
+}
+"""
+    messages = [
+        SystemMessage(content=full_prompt + json_format_hint),
         HumanMessage(content="请分解这个任务。")
-    ])
+    ]
+
+    # 流式调用，累积 tokens
+    full_content = ""
+    async for chunk in llm.astream(messages):
+        content = extract_chunk_content(chunk)
+        if content:
+            full_content += content
+
+    print()  # 换行
+
+    # === 解析 JSON 为 DecompositionOutput ===
+    result = parse_json_to_model(full_content, DecompositionOutput, "DECOMPOSE")
 
     # 创建 PlanSteps
     plan_steps = []
@@ -129,7 +157,7 @@ async def decompose_node(
         "task_context": {
             "plan_steps": plan_steps,
             "current_step_index": 0,
-            "plan_status": "executing",
+            "plan_status": "completed",  # 分解完成，等待 ReAct 执行
             "plan_reasoning": result.reasoning,
         }
     }

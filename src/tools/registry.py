@@ -6,7 +6,7 @@
 
 from typing import Callable, Dict, List, Optional, Union
 
-from langchain_core.tools import BaseTool, StructuredTool, tool as lc_tool
+from langchain_core.tools import BaseTool, StructuredTool
 
 
 class ToolRegistry:

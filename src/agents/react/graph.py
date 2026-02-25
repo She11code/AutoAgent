@@ -71,21 +71,19 @@ def create_react_agent(config: ReActAgentConfig) -> Callable:
         """初始化 ReAct 状态"""
         task_context = state.get("task_context", {})
 
-        # 从 task_assignments 获取任务
-        task = ""
-        assignments = task_context.get("task_assignments", [])
-        for assignment in reversed(assignments):
-            if assignment.get("agent") == config.name:
-                task = assignment.get("task", "")
-                break
+        # 直接从 current_task 获取（由 Supervisor 设置）
+        task = task_context.get("current_task", "")
 
-        # 如果没有找到任务，使用用户的最后一条消息
+        # 兜底：从最后一条用户消息获取
         if not task:
             messages = state.get("messages", [])
             for msg in reversed(messages):
                 if hasattr(msg, 'type') and msg.type == 'human':
                     task = msg.content
                     break
+
+        # 获取计划步骤
+        plan_steps = task_context.get("plan_steps", [])
 
         return {
             "task_context": {
@@ -95,6 +93,8 @@ def create_react_agent(config: ReActAgentConfig) -> Callable:
                 "react_status": "thinking",
                 "current_task": task,
                 "react_final_answer": None,
+                "plan_steps": plan_steps,
+                "current_plan_step_index": 0,
             }
         }
 
