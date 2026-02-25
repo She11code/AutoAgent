@@ -7,11 +7,13 @@ Act Node for ReAct Pattern
 - 返回结果供观察
 """
 
+import json
 from typing import Any, Dict, List
 
 from langchain_core.messages import ToolMessage
 
 from ....core.state import MultiAgentState
+from ....utils import react_logger
 
 
 async def act_node(
@@ -42,7 +44,23 @@ async def act_node(
 
     last_iteration = iterations[-1]
     action = last_iteration.get("action")
-    action_input = last_iteration.get("action_input", {}) or {}
+    action_input = last_iteration.get("action_input")
+
+    # 处理 action_input：确保是字典
+    if action_input is None:
+        action_input = {}
+    elif isinstance(action_input, str):
+        # LLM 可能返回字符串形式的 JSON，需要解析
+        try:
+            parsed = json.loads(action_input)
+            if isinstance(parsed, dict):
+                action_input = parsed
+            else:
+                # 如果解析结果不是字典，包装成字典
+                action_input = {"input": parsed}
+        except json.JSONDecodeError:
+            # 不是 JSON 字符串，作为原始字符串参数
+            action_input = {"input": action_input}
 
     # 如果是完成动作，不需要执行
     if action == "finish":
@@ -57,6 +75,7 @@ async def act_node(
 
     if not tool:
         error_msg = f"未知工具: {action}。可用工具: {list(tools_map.keys()) if tools_map else '无'}"
+        react_logger.warning("[ACT] 工具未找到: %s, 可用工具: %s", action, list(tools_map.keys()))
         return {
             "messages": [ToolMessage(
                 content=error_msg,
@@ -67,6 +86,13 @@ async def act_node(
                 "react_status": "observing",
             }
         }
+
+    # 调试输出：工具调用前
+    react_logger.debug("[ACT] 调用工具: %s", action)
+    react_logger.debug("  action_input 类型: %s", type(action_input).__name__)
+    react_logger.debug("  action_input 内容: %s", action_input)
+    if hasattr(tool, 'description'):
+        react_logger.debug("  工具描述: %s...", tool.description[:200])
 
     # 执行工具
     try:
@@ -84,6 +110,10 @@ async def act_node(
         if not isinstance(result, str):
             result = str(result)
 
+        # 调试输出：工具调用结果
+        react_logger.debug("[ACT] 工具返回成功: %d 字符", len(result))
+        react_logger.debug("  结果内容: %s...", result[:500])
+
         tool_message = ToolMessage(
             content=result,
             tool_call_id=f"{action}_call",
@@ -98,7 +128,10 @@ async def act_node(
         }
 
     except Exception as e:
+        import traceback
         error_msg = f"工具执行错误 ({action}): {str(e)}"
+        react_logger.error("[ACT] 工具执行失败: %s", str(e))
+        react_logger.debug("  堆栈: %s", traceback.format_exc())
         return {
             "messages": [ToolMessage(
                 content=error_msg,

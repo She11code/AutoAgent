@@ -6,7 +6,7 @@
 
 from typing import Callable, Optional
 
-from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 

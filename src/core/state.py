@@ -8,13 +8,12 @@
 4. MultiAgentState - 完整状态（包含对话记忆层）
 """
 
-import operator
 from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
-from .reducers import deep_merge_dict_reducer
+from .reducers import deep_merge_dict_reducer, limit_list_reducer
 
 
 class RuntimeState(TypedDict):
@@ -65,20 +64,28 @@ class TaskContext(TypedDict):
     - 跟踪任务分解和执行状态
     - 记录各Agent的输出结果
 
-    Reducer策略：混合（追加/覆盖）
+    Reducer策略：混合（限制追加/覆盖）
     """
     # 当前活跃Agent
     active_agent: str
-    # 任务分配记录（追加）
-    task_assignments: Annotated[List[Dict[str, Any]], operator.add]
-    # 各Agent完成的子结果（追加）
-    agent_results: Annotated[List[Dict[str, Any]], operator.add]
+    # 任务分配记录（限制追加，最多50条）
+    task_assignments: Annotated[List[Dict[str, Any]], limit_list_reducer(50)]
+    # 各Agent完成的子结果（限制追加，最多50条）
+    agent_results: Annotated[List[Dict[str, Any]], limit_list_reducer(50)]
     # 任务状态
     task_status: Literal["planning", "executing", "reviewing", "completed"]
     # 错误信息（只保留最新）
     last_error: Optional[str]
     # 重试计数
     retry_count: int
+    # 当前轮次任务描述（每次 Supervisor 分配时覆盖）
+    current_task: str
+    # 当前轮次分配的目标 Agent
+    assigned_agent: str
+    # 轮次 ID（用于追踪单次对话）
+    turn_id: str
+    # 已完成轮次计数
+    completed_turns: int
 
 
 class MultiAgentState(TypedDict):
@@ -141,7 +148,11 @@ def create_default_task_context() -> TaskContext:
         agent_results=[],
         task_status="planning",
         last_error=None,
-        retry_count=0
+        retry_count=0,
+        current_task="",
+        assigned_agent="",
+        turn_id="",
+        completed_turns=0,
     )
 
 

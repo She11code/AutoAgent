@@ -4,31 +4,12 @@
 提供自定义工具的定义和注册功能，与现有 Agent 系统无缝集成。
 
 Quick Start:
-    # 方式 1: 使用 @tool 装饰器（推荐）
-    from src.tools import tool, ToolRegistry
-
-    @tool
-    def search(query: str) -> str:
-        '''搜索内部知识库'''
-        return "结果..."
-
-    ToolRegistry.register(search)
-
-    # 方式 2: 使用 @register_tool 装饰器
-    from src.tools import register_tool
+    # 方式 1: 使用 @register_tool 装饰器（推荐）
+    from src.tools import register_tool, ToolRegistry
 
     @register_tool("search", "搜索内部知识库")
     def search(query: str) -> str:
         return "结果..."
-
-    # 方式 3: 使用 create_tool 函数
-    from src.tools import create_tool, ToolRegistry
-
-    def my_func(query: str) -> str:
-        return "结果..."
-
-    tool = create_tool("my_tool", "工具描述", my_func)
-    ToolRegistry.register(tool)
 
     # 在 Agent 中使用
     from src.agents import create_react_node
@@ -38,6 +19,14 @@ Quick Start:
         tools=ToolRegistry.get_all(),
         name="researcher",
     )
+
+RimWorld 工具:
+    # 导入 RimWorld 工具集（自动注册）
+    from src.tools.rimworld import *
+
+    # 使用
+    trigger_work("PlantCutting")  # 派人砍树
+    scan_macro_map()              # 查看地图
 """
 
 # 从 LangChain 重新导出常用工具类

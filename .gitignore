@@ -49,3 +49,17 @@ Thumbs.db
 
 # Local settings
 .claude/settings.local.json
+
+# Project specific
+sessions.db
+*.db
+TOOLS.md
+docs/
+examples/
+run.py
+tests/
+前端参考风格/
+ClaudeCode提示词参考/
+
+# RimWorld tool (game specific)
+src/tools/rimworld.py

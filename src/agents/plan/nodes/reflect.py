@@ -10,22 +10,20 @@ Reflect Node for Plan Pattern
 from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessageChunk
 from pydantic import BaseModel, Field
 
 from ....core.state import MultiAgentState
 from ...prompts import load_prompt
-from ...utils import build_system_prompt
+from ...utils import build_system_prompt, extract_chunk_content, parse_json_to_model
 
 
 class ReflectionOutput(BaseModel):
     """反思节点的结构化输出"""
-    should_continue: bool = Field(description="是否继续当前计划")
-    adjustments_needed: bool = Field(description="是否需要调整计划")
-    adjustment_notes: str = Field(description="需要什么调整")
-    overall_progress: str = Field(description="目前进度总结")
-
-
+    should_continue: bool = Field(default=True, description="是否继续当前计划")
+    adjustments_needed: bool = Field(default=False, description="是否需要调整计划")
+    adjustment_notes: str = Field(default="", description="需要什么调整")
+    overall_progress: str = Field(default="", description="目前进度总结")
 
 
 async def reflect_node(
@@ -104,12 +102,37 @@ async def reflect_node(
         include_runtime=False,
     )
 
-    # 调用 LLM 获取反思结果
-    structured_llm = llm.with_structured_output(ReflectionOutput)
-    result = await structured_llm.ainvoke([
-        SystemMessage(content=full_prompt),
+    # === 流式调用 LLM ===
+    # 不使用 with_structured_output()，因为它不支持流式
+    # 改用 astream() + 手动解析 JSON
+
+    # 构建要求 JSON 格式输出的提示
+    json_format_hint = """
+
+请严格按照以下 JSON 格式输出你的反思结果：
+{
+    "should_continue": true或false,
+    "adjustments_needed": true或false,
+    "adjustment_notes": "需要的调整说明",
+    "overall_progress": "目前进度总结"
+}
+"""
+    messages = [
+        SystemMessage(content=full_prompt + json_format_hint),
         HumanMessage(content="请反思计划进度。")
-    ])
+    ]
+
+    # 流式调用，累积 tokens
+    full_content = ""
+    async for chunk in llm.astream(messages):
+        content = extract_chunk_content(chunk)
+        if content:
+            full_content += content
+
+    print()  # 换行
+
+    # === 解析 JSON 为 ReflectionOutput ===
+    result = parse_json_to_model(full_content, ReflectionOutput, "REFLECT")
 
     # 根据反思结果决定下一步
     if result.adjustments_needed:

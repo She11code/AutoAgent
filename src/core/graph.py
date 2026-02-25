@@ -6,12 +6,15 @@
 - 专业Agent处理具体任务
 """
 
-from typing import Callable, Dict, Set
+from typing import TYPE_CHECKING, Callable, Dict, Set
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from .state import MultiAgentState
+
+if TYPE_CHECKING:
+    from .state import DomainKnowledge
 
 # SqliteSaver 需要单独安装: pip install langgraph-checkpoint-sqlite
 try:
@@ -35,7 +38,8 @@ def create_route_supervisor(valid_agents: Set[str]) -> Callable:
         路由函数
     """
     def route_supervisor(state: MultiAgentState) -> str:
-        next_agent = state["task_context"]["active_agent"]
+        # 添加空值保护
+        next_agent = state.get("task_context", {}).get("active_agent", "")
 
         if next_agent == "FINISH" or next_agent == "":
             return END
@@ -209,3 +213,41 @@ def create_simple_app(supervisor_node: Callable, agent_nodes: Dict[str, Callable
         agent_nodes=agent_nodes,
         use_persistence=False,
     )
+
+
+# ========== 会话状态管理 ==========
+
+async def update_session_knowledge(
+    app,
+    thread_id: str,
+    knowledge: "DomainKnowledge",
+) -> None:
+    """
+    更新会话的领域知识
+
+    Args:
+        app: 编译后的图应用 (CompiledStateGraph)
+        thread_id: 会话ID
+        knowledge: 新的领域知识
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    await app.aupdate_state(config, {"domain_knowledge": knowledge})
+
+
+async def get_session_state(
+    app,
+    thread_id: str,
+) -> "MultiAgentState":
+    """
+    获取会话当前状态
+
+    Args:
+        app: 编译后的图应用
+        thread_id: 会话ID
+
+    Returns:
+        当前会话状态
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = await app.aget_state(config)
+    return snapshot.values
